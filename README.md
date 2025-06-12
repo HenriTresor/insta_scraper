@@ -9,5 +9,5 @@ cd instagram-scraper
 docker build -t instagram-scraper .
 ```
 ```
-docker run --rm instagram-scraper
+docker run -it instagram-scraper
 ```

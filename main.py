@@ -87,7 +87,6 @@ class InstagramScraper:
                 self.driver = None
                 time.sleep(1)
 
-
     def google_search_instagram_profiles(self, location, query, max_results):
         search_query = f'site:instagram.com "{location}" "{query}"'
         base_url = f"https://www.google.com/search?q={quote(search_query)}&tbm=nws"
@@ -98,7 +97,7 @@ class InstagramScraper:
         try:
             while len(profile_urls) < max_results and page < 10:
                 url = f"{base_url}&start={page*10}"
-                print(f"🔎 Searching Google: {url}")
+                print(f"🔎 Searching ...")
                 self.driver.get(url)
 
                 try:
@@ -110,6 +109,8 @@ class InstagramScraper:
                     break
 
                 anchors = self.driver.find_elements(By.CSS_SELECTOR, "a")
+                before_count = len(profile_urls)
+
                 for a in anchors:
                     href = a.get_attribute("href")
                     if href and "instagram.com" in href:
@@ -123,6 +124,11 @@ class InstagramScraper:
                                     print(f"✅ Found profile: {username}")
                                     profile_urls.append(full_url)
 
+                after_count = len(profile_urls)
+                if after_count == before_count:
+                    print("⛔ No new Instagram links found on this page. Stopping search.")
+                    break  # No new links found, stop searching
+
                 page += 1
                 time.sleep(random.uniform(1, 2))
         except Exception as e:
@@ -131,6 +137,7 @@ class InstagramScraper:
 
         print(f"📦 Collected {len(profile_urls)} Instagram profile URLs.")
         return profile_urls[:max_results * 3]
+
 
     def scrape_instagram_bio(self, url):
         try:
@@ -225,10 +232,10 @@ class InstagramScraper:
 
 if __name__ == "__main__":
     scraper = InstagramScraper()
-    
-    location = input()
-    query = input()
-    count = int(input())
+
+    location = input("Enter location (e.g., New York): ")
+    query = input("Enter search topic (e.g., motorsport): ")
+    count = int(input("Enter number of accounts to find (e.g., 10): "))
 
     try:
         results = scraper.find_top_accounts(location, query, count)
