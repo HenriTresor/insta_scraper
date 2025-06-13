@@ -1,7 +1,5 @@
-# Use Python 3.11 as base image
 FROM python:3.11-slim
 
-# Install Chrome and required dependencies
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
@@ -13,21 +11,19 @@ RUN apt-get update && apt-get install -y \
     && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
-# Set up working directory
+RUN apt-get install -y xvfb
 WORKDIR /app
 
-# Copy requirements first to leverage Docker cache
 COPY requirements.txt .
 
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application files
 COPY main.py .
+COPY qwen_generator.py .
+COPY generate_queries.py .
 COPY cookies.json .
 
-# Set display for Chrome
 ENV DISPLAY=:99
 
-# Command to run the application
-CMD ["python", "main.py"] 
+ENTRYPOINT ["xvfb-run", "-a", "python3", "-u", "main.py"]
+
