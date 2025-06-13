@@ -19,6 +19,18 @@ from qwen_generator import generate_instagram_search_queries
 class InstagramScraper:
     def __init__(self):
         self.driver = None
+        self.USER_AGENTS = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.60 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_2) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.6312.107 Safari/537.36",
+        ]
+
+    def human_like_scroll(self):
+        scroll_pause = random.uniform(0.3, 0.8)
+        for _ in range(random.randint(3, 6)):
+            self.driver.execute_script("window.scrollBy(0, window.innerHeight / 2);")
+            time.sleep(scroll_pause)
+
 
     def get_chrome_version(self):
         try:
@@ -32,19 +44,31 @@ class InstagramScraper:
 
     def create_driver(self):
         self.safe_quit()
+        ua = random.choice(self.USER_AGENTS)
         options = uc.ChromeOptions()
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--window-size=1920,1080")
-        options.add_argument("--headless")
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-gpu")
-        options.add_argument("--blink-settings=imagesEnabled=false")
-        prefs = {"profile.managed_default_content_settings.images": 2, "profile.managed_default_content_settings.javascript": 1}
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--lang=en-US,en;q=0.9")
+        options.add_argument(f"user-agent={ua}")
+
+        # Disable headless mode for now
+        # options.headless = True  ← Commented to reduce detection
+
+
+        prefs = {
+            "profile.managed_default_content_settings.images": 2,
+            "profile.managed_default_content_settings.javascript": 1
+        }
         options.add_experimental_option("prefs", prefs)
-        options = uc.ChromeOptions()
-        options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+
         self.driver = uc.Chrome(options=options, headless=True)
         self.driver.set_page_load_timeout(30)
+
+
 
     def load_cookies(self, path):
         if not self.driver:
@@ -101,7 +125,12 @@ class InstagramScraper:
                 url = f"{base_url}&start={page*10}&num=50"
                 print(f"🔎 Searching {url} ...")
                 self.driver.get(url)
+                time.sleep(random.uniform(2, 4))
+                self.human_like_scroll()
 
+                # if "sorry" in self.driver.current_url or "unusual traffic" in self.driver.page_source.lower():
+                #     print("🚨 Google CAPTCHA or block detected. Backing off.")
+                #     break
                 try:
                     WebDriverWait(self.driver, 10).until(
                         EC.presence_of_element_located((By.CSS_SELECTOR, "a"))
@@ -113,26 +142,25 @@ class InstagramScraper:
                 anchors = self.driver.find_elements(By.CSS_SELECTOR, "a")
                 before_count = len(profile_urls)
 
-                print(f"🔍 Found {len(anchors)} on this page")
-                if len(anchors) ==3:
-                    print([a.get_attribute('href') for a in anchors])
+                # print(f"found {len(anchors)}")
+
                 for a in anchors:
-                    href = a.get_attribute("href")
-                    if href and "instagram.com" in href:
-                        href = href.split("?")[0]
-                        match = re.search(r"https://www\.instagram\.com/([a-zA-Z0-9_.]+)/?", href)
-                        if match:
-                            username = match.group(1)
-                            if username.lower() not in ("p", "reel", "tv", "stories", "explore"):
-                                full_url = f"https://www.instagram.com/{username}/"
-                                if full_url not in profile_urls:
-                                    print(f"✅ Found profile: {username}")
-                                    profile_urls.append(full_url)
+                        href = a.get_attribute("href")
+                        if href and "instagram.com" in href:
+                            href = href.split("?")[0]
+                            match = re.search(r"https://www\.instagram\.com/([a-zA-Z0-9_.]+)/?", href)
+                            if match:
+                                username = match.group(1)
+                                if username.lower() not in ("p", "reel", "tv", "stories", "explore"):
+                                    full_url = f"https://www.instagram.com/{username}/"
+                                    if full_url not in profile_urls:
+                                        print(f"✅ Found profile: {username}")
+                                        profile_urls.append(full_url)
 
                 after_count = len(profile_urls)
                 if after_count == before_count:
-                    print("⛔ No new Instagram links found on this page. Stopping search.")
-                    break  # No new links found, stop searching
+                    print("⛔ No new Instagram links found on this page. moving to the next")
+                    break
 
                 page += 1
                 time.sleep(random.uniform(1, 2))
