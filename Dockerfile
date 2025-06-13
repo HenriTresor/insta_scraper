@@ -25,5 +25,6 @@ COPY cookies.json .
 
 ENV DISPLAY=:99
 
-ENTRYPOINT ["xvfb-run", "-a", "python3", "-u", "main.py"]
+CMD ["python3", "main.py"]
+
 
