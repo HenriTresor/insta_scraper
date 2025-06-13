@@ -11,6 +11,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 import html
 
+from qwen_generator import generate_instagram_search_queries
+
 
 
 
@@ -33,14 +35,14 @@ class InstagramScraper:
         options = uc.ChromeOptions()
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--window-size=1920,1080")
-        # options.add_argument("--headless")
+        options.add_argument("--headless")
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-gpu")
         options.add_argument("--blink-settings=imagesEnabled=false")
         prefs = {"profile.managed_default_content_settings.images": 2, "profile.managed_default_content_settings.javascript": 1}
         options.add_experimental_option("prefs", prefs)
-        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-        # chrome_version = self.get_chrome_version() or "114"
+        options = uc.ChromeOptions()
+        options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
         self.driver = uc.Chrome(options=options, headless=True)
         self.driver.set_page_load_timeout(30)
 
@@ -88,16 +90,16 @@ class InstagramScraper:
                 time.sleep(1)
 
     def google_search_instagram_profiles(self, location, query, max_results):
-        search_query = f'site:instagram.com "{location}" "{query}"'
-        base_url = f"https://www.google.com/search?q={quote(search_query)}&tbm=nws"
+        # search_query = f'site:instagram.com "{query}" "{location}"'
+        base_url = f"https://www.google.com/search?q={quote(query)}&tbm=nws"
         profile_urls = []
         page = 0
 
         self.create_driver()
         try:
             while len(profile_urls) < max_results and page < 10:
-                url = f"{base_url}&start={page*10}"
-                print(f"🔎 Searching ...")
+                url = f"{base_url}&start={page*10}&num=50"
+                print(f"🔎 Searching {url} ...")
                 self.driver.get(url)
 
                 try:
@@ -111,11 +113,14 @@ class InstagramScraper:
                 anchors = self.driver.find_elements(By.CSS_SELECTOR, "a")
                 before_count = len(profile_urls)
 
+                print(f"🔍 Found {len(anchors)} on this page")
+                if len(anchors) ==3:
+                    print([a.get_attribute('href') for a in anchors])
                 for a in anchors:
                     href = a.get_attribute("href")
                     if href and "instagram.com" in href:
                         href = href.split("?")[0]
-                        match = re.match(r"https://www\.instagram\.com/([^/?#]+)/?", href)
+                        match = re.search(r"https://www\.instagram\.com/([a-zA-Z0-9_.]+)/?", href)
                         if match:
                             username = match.group(1)
                             if username.lower() not in ("p", "reel", "tv", "stories", "explore"):
@@ -187,11 +192,11 @@ class InstagramScraper:
             return 0, ""
 
 
-    def find_top_accounts(self, location, query, count):
+    def find_top_accounts(self, location, query, count, queries):
         print(f"\n🚀 Starting search for {count} Instagram accounts in '{location}' about '{query}'")
         results = []
-
-        profiles = self.google_search_instagram_profiles(location, query, count)
+        for q in queries:
+            profiles = self.google_search_instagram_profiles(location, q, count)
         
         # Ensure the driver is still alive
         if not self.driver:
@@ -238,12 +243,16 @@ if __name__ == "__main__":
     count = int(input("Enter number of accounts to find (e.g., 10): "))
 
     try:
-        results = scraper.find_top_accounts(location, query, count)
-        print("\n📊 Top Results:")
-        for i, r in enumerate(results, 1):
-            print(f"{i}. @{r['username']} - {r['follower_count']:,} followers")
-            print(f"   URL: {r['profile_url']}")
-            print(f"   Bio: {r['bio']}\n")
+        print("🔍 generating appropriate queries with LLM ...")
+        queries = generate_instagram_search_queries(topic=query, location=location)
+        if len(queries):
+            print("✔️ queries generated")
+            results = scraper.find_top_accounts(location, query, count, queries)
+            print("\n📊 Top Results:")
+            for i, r in enumerate(results, 1):
+                print(f"{i}. @{r['username']} - {r['follower_count']:,} followers")
+                print(f"   URL: {r['profile_url']}")
+                print(f"   Bio: {r['bio']}\n")
 
     except Exception as e:
         print(f"❌ Script failed: {str(e)}")
